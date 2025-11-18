@@ -1,0 +1,2 @@
+click==8.3.1
+protobuf==6.33.1
