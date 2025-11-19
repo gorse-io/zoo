@@ -1,0 +1,16 @@
+version: "3"
+services:
+  master:
+    image: zhenghaoz/gorse-master:nightly
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+      - 8088:8088
+    environment:
+      GORSE_CACHE_STORE: sqlite:///var/lib/gorse/cache.sqlite3
+      GORSE_DATA_STORE: sqlite:///var/lib/gorse/data.sqlite3
+    command: >
+      -c /etc/gorse/config.toml
+    volumes:
+      - ./config.toml:/etc/gorse/config.toml
+      - ./data:/var/lib/gorse
