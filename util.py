@@ -54,6 +54,16 @@ def write_dump(f, data: message.Message):
     f.write(bytes_data)
 
 
+def dataset_directories(dataset):
+    """Return dataset-local intermediate and final-output directories."""
+    directory = Path(__file__).resolve().parent / dataset
+    temporary = directory / "tmp"
+    binary = directory / "bin"
+    temporary.mkdir(parents=True, exist_ok=True)
+    binary.mkdir(parents=True, exist_ok=True)
+    return temporary, binary
+
+
 def download_file(url, path):
     path = Path(path)
     if path.exists():
@@ -159,9 +169,9 @@ def generate_amazon_embeddings(directory, database, total):
         database.commit()
 
 
-def dump_amazon(directory, category, stats, database=None):
-    path = directory / f"{directory.name}.bin"
-    temporary = path.with_name(path.name + ".part")
+def dump_amazon(directory, category, stats, output_path, database=None):
+    path = Path(output_path)
+    temporary = directory / (path.name + ".part")
     with temporary.open("wb") as output:
         output.write((-1).to_bytes(8, byteorder="little", signed=True))
         for user in tqdm.tqdm(read_jsonl(directory / "users.jsonl"), total=stats["users"], desc="Dumping Users"):
@@ -206,8 +216,8 @@ def amazon_converter(category, dataset):
     @click.option("--stop-before-embedding", is_flag=True, help="Stop after preparing users and product descriptions.")
     @click.option("--skip-embedding", is_flag=True, help="Generate the dump without embedding API calls.")
     def convert(stop_before_embedding, skip_embedding):
-        directory = Path("lib") / dataset
-        directory.mkdir(parents=True, exist_ok=True)
+        directory, binary_directory = dataset_directories(dataset)
+        output_path = binary_directory / f"{dataset}.bin"
         review_name = f"{category}.jsonl.gz"
         metadata_name = f"meta_{category}.jsonl.gz"
         download_file(f"{AMAZON_BASE_URL}/review_categories/{review_name}", directory / review_name)
@@ -217,11 +227,11 @@ def amazon_converter(category, dataset):
         if stop_before_embedding:
             return
         if skip_embedding:
-            dump_amazon(directory, category, stats)
+            dump_amazon(directory, category, stats, output_path)
         else:
             # Keep vectors on disk rather than loading the entire catalogue into RAM.
             with sqlite3.connect(directory / "embeddings.sqlite") as database:
                 generate_amazon_embeddings(directory, database, stats["items"])
-                dump_amazon(directory, category, stats, database)
+                dump_amazon(directory, category, stats, output_path, database)
 
     return convert

@@ -1,3 +1,7 @@
+# Dataset intermediates and generated dumps
+/*/tmp/
+/*/bin/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

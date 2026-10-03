@@ -14,16 +14,19 @@ from google.protobuf import timestamp_pb2
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import protocol_pb2
-from util import get_description, get_embedding, write_dump
+from util import dataset_directories, get_description, get_embedding, write_dump
 
 
 @click.command()
 @click.option("--stop-before-embedding", is_flag=True, help="Stop after generating movie descriptions.")
 def convert(stop_before_embedding):
-    os.makedirs("lib", exist_ok=True)
+    temporary_directory, binary_directory = dataset_directories("ml-100k")
+    directory = str(temporary_directory / "ml-100k")
+    output_path = binary_directory / "ml-100k.bin"
+    temporary_dump = temporary_directory / "ml-100k.bin.part"
 
     url = "https://files.grouplens.org/datasets/movielens/ml-100k.zip"
-    zip_path = "lib/ml-100k.zip"
+    zip_path = str(temporary_directory / "ml-100k.zip")
     genres = [
         "unknown",
         "Action",
@@ -62,19 +65,19 @@ def convert(stop_before_embedding):
                 pbar.update(len(chunk))
 
     # Extract the dataset
-    if not os.path.exists("lib/ml-100k"):
+    if not os.path.exists(directory):
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             members = zip_ref.namelist()
             with tqdm.tqdm(
                 total=len(members), desc="Extracting", unit="file"
             ) as pbar:
                 for member in members:
-                    zip_ref.extract(member, "lib")
+                    zip_ref.extract(member, temporary_directory)
                     pbar.update(1)
 
     # Generate descriptions
-    if not os.path.exists("lib/ml-100k/u.description"):
-        with open("lib/ml-100k/u.item", encoding="ISO-8859-1") as f:
+    if not os.path.exists(directory + "/u.description"):
+        with open(directory + "/u.item", encoding="ISO-8859-1") as f:
             lines = f.readlines()
         for line in tqdm.tqdm(lines, desc="Generating Descriptions"):
             parts = line.split("|")
@@ -82,7 +85,7 @@ def convert(stop_before_embedding):
             title = parts[1]
             description = get_description(title)
             with open(
-                "lib/ml-100k/u.description", "a", encoding="utf-8"
+                directory + "/u.description", "a", encoding="utf-8"
             ) as desc_file:
                 desc_file.write(f"{movie_id}|{description}\n")
 
@@ -90,8 +93,8 @@ def convert(stop_before_embedding):
         return
 
     # Generate embedding
-    if not os.path.exists("lib/ml-100k/u.embedding"):
-        with open("lib/ml-100k/u.description", encoding="utf-8") as f:
+    if not os.path.exists(directory + "/u.embedding"):
+        with open(directory + "/u.description", encoding="utf-8") as f:
             lines = f.readlines()
         for line in tqdm.tqdm(lines, desc="Generating Embeddings"):
             parts = line.strip().split("|", 1)
@@ -99,14 +102,14 @@ def convert(stop_before_embedding):
             description = parts[1]
             embedding = get_embedding(description)
             with open(
-                "lib/ml-100k/u.embedding", "a", encoding="utf-8"
+                directory + "/u.embedding", "a", encoding="utf-8"
             ) as embed_file:
                 embed_file.write(f"{movie_id}|{'|'.join(map(str, embedding))}\n")
 
-    with open("lib/ml-100k/ml-100k.bin", "wb") as f:
+    with open(temporary_dump, "wb") as f:
         # Dump users
         f.write((-1).to_bytes(8, byteorder="little", signed=True))
-        with open("lib/ml-100k/u.user") as user_file:
+        with open(directory + "/u.user") as user_file:
             lines = user_file.readlines()
         for line in tqdm.tqdm(lines, desc="Dumping Users"):
             parts = line.strip().split("|")
@@ -127,13 +130,13 @@ def convert(stop_before_embedding):
         # Dump items
         f.write((-2).to_bytes(8, byteorder="little", signed=True))
         embeddings = {}
-        with open("lib/ml-100k/u.embedding", encoding="utf-8") as embed_file:
+        with open(directory + "/u.embedding", encoding="utf-8") as embed_file:
             for line in embed_file:
                 parts = line.strip().split("|")
                 item_id = parts[0]
                 embedding = list(map(float, parts[1:]))
                 embeddings[item_id] = embedding
-        with open("lib/ml-100k/u.item", encoding="ISO-8859-1") as item_file:
+        with open(directory + "/u.item", encoding="ISO-8859-1") as item_file:
             lines = item_file.readlines()
         for line in tqdm.tqdm(lines, desc="Dumping Items"):
             parts = line.strip().split("|")
@@ -161,7 +164,7 @@ def convert(stop_before_embedding):
             )
         # Dump feedback
         f.write((-3).to_bytes(8, byteorder="little", signed=True))
-        with open("lib/ml-100k/u.data") as data_file:
+        with open(directory + "/u.data") as data_file:
             lines = data_file.readlines()
         for line in tqdm.tqdm(lines, desc="Dumping Feedback"):
             parts = line.strip().split("\t")
@@ -182,6 +185,7 @@ def convert(stop_before_embedding):
                 ),
             )
         f.write((0).to_bytes(8, byteorder="little", signed=True))
+    os.replace(temporary_dump, output_path)
 
 if __name__ == "__main__":
     convert()

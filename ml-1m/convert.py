@@ -14,15 +14,17 @@ from google.protobuf import timestamp_pb2
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import protocol_pb2
-from util import get_description, get_embedding, write_dump
+from util import dataset_directories, get_description, get_embedding, write_dump
 
 
 @click.command()
 @click.option("--stop-before-embedding", is_flag=True, help="Stop after generating movie descriptions.")
 def convert(stop_before_embedding):
-    os.makedirs("lib", exist_ok=True)
-    directory = "lib/ml-1m"
-    zip_path = "lib/ml-1m.zip"
+    temporary_directory, binary_directory = dataset_directories("ml-1m")
+    directory = str(temporary_directory / "ml-1m")
+    zip_path = str(temporary_directory / "ml-1m.zip")
+    output_path = binary_directory / "ml-1m.bin"
+    temporary_dump = temporary_directory / "ml-1m.bin.part"
     if not os.path.exists(directory):
         if not os.path.exists(zip_path):
             url = "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
@@ -39,7 +41,7 @@ def convert(stop_before_embedding):
         with zipfile.ZipFile(zip_path) as archive:
             # Extract only the expected dataset files.
             for name in ("movies.dat", "users.dat", "ratings.dat", "README"):
-                archive.extract("ml-1m/" + name, "lib")
+                archive.extract("ml-1m/" + name, temporary_directory)
 
     with open(directory + "/movies.dat", encoding="ISO-8859-1") as source:
         movies = [line.rstrip("\r\n").split("::", 2) for line in source]
@@ -90,7 +92,7 @@ def convert(stop_before_embedding):
         "self-employed", "technician/engineer", "tradesman/craftsman",
         "unemployed", "writer",
     ]
-    with open(directory + "/ml-1m.bin", "wb") as output:
+    with open(temporary_dump, "wb") as output:
         # Dump users. The age field is the dataset's age-group code.
         output.write((-1).to_bytes(8, byteorder="little", signed=True))
         with open(directory + "/users.dat", encoding="ISO-8859-1") as source:
@@ -125,6 +127,7 @@ def convert(stop_before_embedding):
                     value=float(rating), timestamp=timestamp,
                 ))
         output.write((0).to_bytes(8, byteorder="little", signed=True))
+    os.replace(temporary_dump, output_path)
 
 if __name__ == "__main__":
     convert()

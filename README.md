@@ -11,8 +11,28 @@ A collection of datasets in Gorse dump format.
 ## Dataset scripts
 
 Each dataset has its own standalone script. Shared API and dump-writing helpers
-live in the root `util.py`. Run commands from the repository root; downloaded
-files and generated artifacts are stored under `lib/<dataset>/`.
+live in the root `util.py`. Run the example commands from the repository root.
+Downloads, prepared data, descriptions, embeddings, and temporary `.part` files
+are stored in each dataset's `tmp/` directory. Complete dumps are stored in its
+`bin/` directory. Paths are resolved relative to the repository, not the current
+working directory.
+
+```text
+amazon-all-beauty/
+├── convert.py
+├── tmp/    # downloads, prepared data, embedding cache, incomplete dumps
+└── bin/    # amazon-all-beauty.bin
+```
+
+Both `tmp/` and `bin/` are ignored by Git. A dump is first written to
+`tmp/<dataset>.bin.part` and moved into `bin/<dataset>.bin` only after it is
+complete. Interrupted output therefore does not replace a previous complete dump.
+
+MovieLens ZIP archives are stored in `ml-100k/tmp/` or `ml-1m/tmp/`; their
+extracted source files and description/embedding caches are stored in
+`ml-100k/tmp/ml-100k/` or `ml-1m/tmp/ml-1m/`.
+Old `lib/` paths are no longer read; move existing caches to the new directories
+before re-running if you want to avoid regenerating descriptions or embeddings.
 
 ```sh
 python ml-100k/convert.py --stop-before-embedding
@@ -35,10 +55,10 @@ Download, extract, and generate movie descriptions, stopping before embeddings:
 python ml-1m/convert.py --stop-before-embedding
 ```
 
-Descriptions are cached in `lib/ml-1m/movies.description`. Re-running resumes
+Descriptions are cached in `ml-1m/tmp/ml-1m/movies.description`. Re-running resumes
 missing movies. No embeddings or binary dump are generated with this option.
 
-To continue with embeddings and produce `lib/ml-1m/ml-1m.bin`:
+To continue with embeddings and produce `ml-1m/bin/ml-1m.bin`:
 
 ```sh
 python ml-1m/convert.py
@@ -67,7 +87,7 @@ python amazon-all-beauty/convert.py --stop-before-embedding
 
 Descriptions use the existing product title, description, and features; no LLM
 text generation is needed. Prepared data and counts are cached as
-`lib/amazon-all-beauty/users.jsonl`, `items.jsonl`, and `stats.json`.
+`amazon-all-beauty/tmp/users.jsonl`, `items.jsonl`, and `stats.json`.
 
 Generate a complete dump without embeddings:
 
@@ -82,11 +102,11 @@ optional `OPENAI_API_BASE` supporting `text-embedding-3-small`, then run:
 python amazon-all-beauty/convert.py
 ```
 
-Embedding responses are cached per product in `embeddings.sqlite`, allowing
+Embedding responses are cached per product in `tmp/embeddings.sqlite`, allowing
 interrupted runs to resume without keeping all vectors in memory. Products
 without any text do not make an embedding request and have an empty vector.
 
-The output is `lib/amazon-all-beauty/amazon-all-beauty.bin`. Product labels retain
+The output is `amazon-all-beauty/bin/amazon-all-beauty.bin`. Product labels retain
 `description`, `store`, and `price` when available; embeddings are added unless
 `--skip-embedding` is used. Comments preserve product titles and review text.
 Review ratings are exported as `rating` feedback with millisecond timestamps.
@@ -112,8 +132,8 @@ python amazon-books/convert.py --stop-before-embedding
 python amazon-electronics/convert.py --skip-embedding
 ```
 
-Inputs are stored under `lib/<dataset>/`, and the dump is
-`lib/<dataset>/<dataset>.bin`. All Beauty retains its existing cache paths.
+Inputs and intermediate caches are stored under `<dataset>/tmp/`, and the dump
+is `<dataset>/bin/<dataset>.bin`.
 The additional scripts have not been run; no additional datasets were downloaded
 or converted. Large categories require enough disk space for the compressed
 sources and generated artifacts, plus RAM for the user and product ID sets.
