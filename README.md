@@ -50,10 +50,12 @@ The dump preserves the original age-group codes, converts occupation codes to
 names, and uses January 1 of the release year for item timestamps because this
 dataset does not include exact release dates.
 
-## Convert Amazon All Beauty 2023
+## Convert Amazon Reviews 2023 datasets
 
-The standalone converter downloads the raw `All_Beauty` reviews and product
-metadata from the official Amazon Reviews 2023 dataset. It reads gzip JSONL
+Each category has a standalone script; downloading, preparing users and items,
+embedding caching, and dump generation are shared in `util.py`. Each converter
+downloads its category's raw reviews and product metadata from the official
+Amazon Reviews 2023 dataset. It reads gzip JSONL
 files directly, without unpacking them. Product IDs use `parent_asin` rather
 than variant-level `asin`, matching the metadata.
 
@@ -91,11 +93,64 @@ Review ratings are exported as `rating` feedback with millisecond timestamps.
 All raw reviews are retained in source order, including repeated user/product
 pairs; the feedback count is the number of exported records, not unique pairs.
 
-The raw metadata contains 112,590 products, including 25 with no reviews; the
-converter retains all of them. There are 112,565 products referenced by reviews.
+For `All_Beauty`, the raw metadata contains 112,590 products, including 25 with
+no reviews; the converter retains all of them. There are 112,565 products
+referenced by reviews.
 If a reviewed product lacks metadata, it is retained with a
 `metadata_missing` label rather than dropping its feedback. Item timestamps
 are unset because the metadata does not supply product release dates.
 
 The source dataset's usage terms apply to the downloaded files. Only conversion
 code is tracked in this repository, not the source data or generated dumps.
+
+### Available Amazon category scripts
+
+All category scripts use the same options shown above. For example:
+
+```sh
+python amazon-books/convert.py --stop-before-embedding
+python amazon-electronics/convert.py --skip-embedding
+```
+
+Inputs are stored under `lib/<dataset>/`, and the dump is
+`lib/<dataset>/<dataset>.bin`. All Beauty retains its existing cache paths.
+The additional scripts have not been run; no additional datasets were downloaded
+or converted. Large categories require enough disk space for the compressed
+sources and generated artifacts, plus RAM for the user and product ID sets.
+
+| Source category | Script |
+|-----------------|--------|
+| `All_Beauty` | `amazon-all-beauty/convert.py` |
+| `Amazon_Fashion` | `amazon-fashion/convert.py` |
+| `Appliances` | `amazon-appliances/convert.py` |
+| `Arts_Crafts_and_Sewing` | `amazon-arts-crafts-and-sewing/convert.py` |
+| `Automotive` | `amazon-automotive/convert.py` |
+| `Baby_Products` | `amazon-baby-products/convert.py` |
+| `Beauty_and_Personal_Care` | `amazon-beauty-and-personal-care/convert.py` |
+| `Books` | `amazon-books/convert.py` |
+| `CDs_and_Vinyl` | `amazon-cds-and-vinyl/convert.py` |
+| `Cell_Phones_and_Accessories` | `amazon-cell-phones-and-accessories/convert.py` |
+| `Clothing_Shoes_and_Jewelry` | `amazon-clothing-shoes-and-jewelry/convert.py` |
+| `Digital_Music` | `amazon-digital-music/convert.py` |
+| `Electronics` | `amazon-electronics/convert.py` |
+| `Gift_Cards` | `amazon-gift-cards/convert.py` |
+| `Grocery_and_Gourmet_Food` | `amazon-grocery-and-gourmet-food/convert.py` |
+| `Handmade_Products` | `amazon-handmade-products/convert.py` |
+| `Health_and_Household` | `amazon-health-and-household/convert.py` |
+| `Health_and_Personal_Care` | `amazon-health-and-personal-care/convert.py` |
+| `Home_and_Kitchen` | `amazon-home-and-kitchen/convert.py` |
+| `Industrial_and_Scientific` | `amazon-industrial-and-scientific/convert.py` |
+| `Kindle_Store` | `amazon-kindle-store/convert.py` |
+| `Magazine_Subscriptions` | `amazon-magazine-subscriptions/convert.py` |
+| `Movies_and_TV` | `amazon-movies-and-tv/convert.py` |
+| `Musical_Instruments` | `amazon-musical-instruments/convert.py` |
+| `Office_Products` | `amazon-office-products/convert.py` |
+| `Patio_Lawn_and_Garden` | `amazon-patio-lawn-and-garden/convert.py` |
+| `Pet_Supplies` | `amazon-pet-supplies/convert.py` |
+| `Software` | `amazon-software/convert.py` |
+| `Sports_and_Outdoors` | `amazon-sports-and-outdoors/convert.py` |
+| `Subscription_Boxes` | `amazon-subscription-boxes/convert.py` |
+| `Tools_and_Home_Improvement` | `amazon-tools-and-home-improvement/convert.py` |
+| `Toys_and_Games` | `amazon-toys-and-games/convert.py` |
+| `Video_Games` | `amazon-video-games/convert.py` |
+| `Unknown` | `amazon-unknown/convert.py` |

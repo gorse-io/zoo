@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from util import amazon_converter
 
 
-convert = amazon_converter("All_Beauty", "amazon-all-beauty")
+convert = amazon_converter("Digital_Music", "amazon-digital-music")
 
 
 if __name__ == "__main__":
