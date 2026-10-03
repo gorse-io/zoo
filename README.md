@@ -48,9 +48,3 @@ configure `OPENAI_API_BASE` and `OPENAI_API_KEY` for that service before continu
 The dump preserves the original age-group codes, converts occupation codes to
 names, and uses January 1 of the release year for item timestamps because this
 dataset does not include exact release dates.
-
-Run conversion tests (LLM responses are mocked; no paid API calls):
-
-```sh
-python -m unittest -v test_convert
-```
