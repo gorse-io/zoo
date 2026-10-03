@@ -7,6 +7,19 @@ A collection of datasets in Gorse dump format.
 | [MovieLens 100K](https://grouplens.org/datasets/movielens/100k/) | 943 | 1,682 | 100,000 |
 | [MovieLens 1M](https://grouplens.org/datasets/movielens/1m/) | 6,040 | 3,883 | 1,000,209 |
 
+## Dataset scripts
+
+Each dataset has its own standalone script. Shared API and dump-writing helpers
+live in the root `util.py`. Run commands from the repository root; downloaded
+files and generated artifacts are stored under `lib/<dataset>/`.
+
+```sh
+python ml-100k/convert.py --stop-before-embedding
+python ml-1m/convert.py --stop-before-embedding
+```
+
+Omit `--stop-before-embedding` to generate embeddings and the binary dump.
+
 ## Convert MovieLens 1M
 
 Install the dependencies with `pip install -r requirements.txt`. Configure
@@ -18,7 +31,7 @@ the base URL and model (for example, `deepseek-v4-flash`).
 Download, extract, and generate movie descriptions, stopping before embeddings:
 
 ```sh
-python convert.py ml-1m --stop-before-embedding
+python ml-1m/convert.py --stop-before-embedding
 ```
 
 Descriptions are cached in `lib/ml-1m/movies.description`. Re-running resumes
@@ -27,7 +40,7 @@ missing movies. No embeddings or binary dump are generated with this option.
 To continue with embeddings and produce `lib/ml-1m/ml-1m.bin`:
 
 ```sh
-python convert.py ml-1m
+python ml-1m/convert.py
 ```
 
 The embedding step requires a service supporting `text-embedding-3-small`;
