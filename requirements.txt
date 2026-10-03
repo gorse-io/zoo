@@ -1,2 +1,6 @@
 click==8.3.1
 protobuf==6.33.1
+requests==2.34.2
+tqdm==4.70.1
+python-dotenv==1.2.4
+openai==3.24.0
