@@ -64,7 +64,7 @@ To continue with embeddings and produce `ml-1m/bin/ml-1m.bin`:
 python ml-1m/convert.py
 ```
 
-The embedding step requires a service supporting `text-embedding-3-small`;
+The embedding step requires a service supporting `qwen3.7-text-embedding-flash`;
 configure `OPENAI_API_BASE` and `OPENAI_API_KEY` for that service before continuing.
 The dump preserves the original age-group codes, converts occupation codes to
 names, and uses January 1 of the release year for item timestamps because this
@@ -96,19 +96,23 @@ python amazon-all-beauty/convert.py --skip-embedding
 ```
 
 To generate embeddings and then the dump, configure `OPENAI_API_KEY` and an
-optional `OPENAI_API_BASE` supporting `text-embedding-3-small`, then run:
+optional `OPENAI_API_BASE` supporting `qwen3.7-text-embedding-flash`, then run:
 
 ```sh
 python amazon-all-beauty/convert.py
 ```
 
 Embedding responses are cached per product in `tmp/embeddings.sqlite`, allowing
-interrupted runs to resume without keeping all vectors in memory. Products
-without any text do not make an embedding request and have an empty vector.
+interrupted runs to resume without keeping all vectors in memory. Vectors are
+stored as little-endian float32 BLOBs (4 bytes per dimension) and decoded to
+lists when writing the dump. Products without any text do not make an embedding
+request and are cached as empty BLOBs.
 
 The output is `amazon-all-beauty/bin/amazon-all-beauty.bin`. Product labels retain
-`description`, `store`, and `price` when available; embeddings are added unless
-`--skip-embedding` is used. Comments preserve product titles and review text.
+`store`, `average_rating`, `rating_number`, and `price` when available; embeddings
+are added unless `--skip-embedding` is used. Descriptions are kept in the prepared
+data for embedding generation and are omitted from exported labels.
+Comments preserve product titles and review text.
 Review ratings are exported as `rating` feedback with millisecond timestamps.
 All raw reviews are retained in source order, including repeated user/product
 pairs; the feedback count is the number of exported records, not unique pairs.

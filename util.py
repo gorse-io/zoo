@@ -2,6 +2,7 @@ import gzip
 import json
 import os
 import sqlite3
+import struct
 from pathlib import Path
 
 import click
@@ -42,7 +43,7 @@ def get_description(title: str) -> str:
 
 def get_embedding(text: str) -> list:
     embedding = get_client().embeddings.create(
-        model="text-embedding-3-small",
+        model="qwen3.7-text-embedding-flash",
         input=text,
     )
     return embedding.data[0].embedding
@@ -134,7 +135,11 @@ def prepare_amazon(directory, category):
             categories = list(dict.fromkeys(
                 [metadata.get("main_category") or category.replace("_", " ")] + (metadata.get("categories") or [])
             ))
-            labels = {key: metadata[key] for key in ("store", "price") if metadata.get(key) is not None}
+            labels = {
+                key: metadata[key]
+                for key in ("store", "average_rating", "rating_number", "price")
+                if metadata.get(key) is not None
+            }
             item = {"item_id": item_id, "title": title, "categories": categories,
                     "description": description, "labels": labels}
             output.write(json.dumps(item, ensure_ascii=False) + "\n")
@@ -159,12 +164,13 @@ def prepare_amazon(directory, category):
 
 
 def generate_amazon_embeddings(directory, database, total):
-    database.execute("CREATE TABLE IF NOT EXISTS embeddings (item_id TEXT PRIMARY KEY, vector TEXT NOT NULL)")
+    database.execute("CREATE TABLE IF NOT EXISTS embeddings (item_id TEXT PRIMARY KEY, vector BLOB NOT NULL)")
     for item in tqdm.tqdm(read_jsonl(directory / "items.jsonl"), total=total, desc="Generating Embeddings"):
         if database.execute("SELECT 1 FROM embeddings WHERE item_id = ?", (item["item_id"],)).fetchone():
             continue
         embedding = get_embedding(item["description"]) if item["description"] else []
-        database.execute("INSERT INTO embeddings VALUES (?, ?)", (item["item_id"], json.dumps(embedding)))
+        vector = struct.pack(f"<{len(embedding)}f", *embedding)
+        database.execute("INSERT INTO embeddings VALUES (?, ?)", (item["item_id"], vector))
         # Save each response immediately, so interruptions do not repeat paid calls.
         database.commit()
 
@@ -180,12 +186,11 @@ def dump_amazon(directory, category, stats, output_path, database=None):
         output.write((-2).to_bytes(8, byteorder="little", signed=True))
         for item in tqdm.tqdm(read_jsonl(directory / "items.jsonl"), total=stats["items"], desc="Dumping Items"):
             labels = dict(item["labels"])
-            labels["description"] = item["description"]
             if database is not None:
                 row = database.execute("SELECT vector FROM embeddings WHERE item_id = ?", (item["item_id"],)).fetchone()
                 if row is None:
                     raise ValueError(f"Missing embedding for {item['item_id']}")
-                labels["embedding"] = json.loads(row[0])
+                labels["embedding"] = list(struct.unpack(f"<{len(row[0]) // 4}f", row[0]))
             write_dump(output, protocol_pb2.Item(
                 item_id=item["item_id"], categories=item["categories"],
                 comment=item["title"], labels=json.dumps(labels, ensure_ascii=False).encode("utf-8"),
