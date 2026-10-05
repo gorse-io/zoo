@@ -118,6 +118,7 @@ are added unless `--skip-embedding` is used. Descriptions are kept in the prepar
 data for embedding generation and are omitted from exported labels.
 Comments preserve product titles and review text.
 Review ratings are exported as `rating` feedback with millisecond timestamps.
+Source ratings of zero are preserved, including the one zero-rated review in `Baby_Products`.
 All raw reviews are retained in source order, including repeated user/product
 pairs; the feedback count is the number of exported records, not unique pairs.
 

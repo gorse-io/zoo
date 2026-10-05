@@ -105,7 +105,8 @@ def prepare_amazon(directory, category):
     for review in tqdm.tqdm(read_jsonl(directory / f"{category}.jsonl.gz"), desc="Reading Reviews"):
         if not review["user_id"] or not review["parent_asin"]:
             raise ValueError("Review has an empty user_id or parent_asin")
-        if not 1 <= float(review["rating"]) <= 5:
+        # Some source categories contain zero ratings; preserve them verbatim.
+        if not 0 <= float(review["rating"]) <= 5:
             raise ValueError(f"Invalid rating: {review['rating']}")
         # Check timestamp range before producing any prepared artifacts.
         timestamp_pb2.Timestamp().FromMilliseconds(int(review["timestamp"]))
