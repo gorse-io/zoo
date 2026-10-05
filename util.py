@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 import struct
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 import click
@@ -163,16 +164,50 @@ def prepare_amazon(directory, category):
     return stats
 
 
-def generate_amazon_embeddings(directory, database, total):
+def generate_amazon_embeddings(directory, database, total, workers=1):
+    # WAL avoids rewriting the rollback journal for every cached API response.
+    database.execute("PRAGMA journal_mode=WAL")
+    database.execute("PRAGMA synchronous=NORMAL")
     database.execute("CREATE TABLE IF NOT EXISTS embeddings (item_id TEXT PRIMARY KEY, vector BLOB NOT NULL)")
-    for item in tqdm.tqdm(read_jsonl(directory / "items.jsonl"), total=total, desc="Generating Embeddings"):
-        if database.execute("SELECT 1 FROM embeddings WHERE item_id = ?", (item["item_id"],)).fetchone():
-            continue
-        embedding = get_embedding(item["description"]) if item["description"] else []
-        vector = struct.pack(f"<{len(embedding)}f", *embedding)
-        database.execute("INSERT INTO embeddings VALUES (?, ?)", (item["item_id"], vector))
-        # Save each response immediately, so interruptions do not repeat paid calls.
-        database.commit()
+    cached = {row[0] for row in database.execute("SELECT item_id FROM embeddings")}
+    items = (item for item in read_jsonl(directory / "items.jsonl") if item["item_id"] not in cached)
+    # Initialize the shared HTTP client before worker threads start.
+    get_client()
+    with ThreadPoolExecutor(max_workers=workers) as executor, tqdm.tqdm(
+        total=total, initial=len(cached), desc="Generating Embeddings"
+    ) as progress:
+        pending = {}
+        failure = None
+
+        def submit_next():
+            item = next(items, None)
+            if item is None:
+                return False
+            future = executor.submit(get_embedding, item["description"]) if item["description"] else executor.submit(list)
+            pending[future] = item["item_id"]
+            return True
+
+        for _ in range(workers):
+            if not submit_next():
+                break
+        while pending:
+            completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in completed:
+                item_id = pending.pop(future)
+                try:
+                    embedding = future.result()
+                except Exception as error:
+                    failure = failure or error
+                    continue
+                vector = struct.pack(f"<{len(embedding)}f", *embedding)
+                # Only the main thread accesses SQLite; persist each successful response.
+                database.execute("INSERT INTO embeddings VALUES (?, ?)", (item_id, vector))
+                database.commit()
+                progress.update(1)
+                if failure is None:
+                    submit_next()
+        if failure is not None:
+            raise failure
 
 
 def dump_amazon(directory, category, stats, output_path, database=None):
@@ -220,7 +255,9 @@ def amazon_converter(category, dataset):
     @click.command()
     @click.option("--stop-before-embedding", is_flag=True, help="Stop after preparing users and product descriptions.")
     @click.option("--skip-embedding", is_flag=True, help="Generate the dump without embedding API calls.")
-    def convert(stop_before_embedding, skip_embedding):
+    @click.option("--embedding-workers", type=click.IntRange(min=1), default=1, show_default=True,
+                  help="Maximum concurrent embedding requests.")
+    def convert(stop_before_embedding, skip_embedding, embedding_workers):
         directory, binary_directory = dataset_directories(dataset)
         output_path = binary_directory / f"{dataset}.bin"
         review_name = f"{category}.jsonl.gz"
@@ -236,7 +273,7 @@ def amazon_converter(category, dataset):
         else:
             # Keep vectors on disk rather than loading the entire catalogue into RAM.
             with sqlite3.connect(directory / "embeddings.sqlite") as database:
-                generate_amazon_embeddings(directory, database, stats["items"])
+                generate_amazon_embeddings(directory, database, stats["items"], embedding_workers)
                 dump_amazon(directory, category, stats, output_path, database)
 
     return convert

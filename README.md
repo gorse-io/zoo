@@ -102,6 +102,10 @@ optional `OPENAI_API_BASE` supporting `qwen3.7-text-embedding-flash`, then run:
 python amazon-all-beauty/convert.py
 ```
 
+Use `--embedding-workers 64` to allow up to 64 concurrent embedding requests.
+The default is one request at a time; successful responses are saved by the
+main thread to the same resumable SQLite cache.
+
 Embedding responses are cached per product in `tmp/embeddings.sqlite`, allowing
 interrupted runs to resume without keeping all vectors in memory. Vectors are
 stored as little-endian float32 BLOBs (4 bytes per dimension) and decoded to
